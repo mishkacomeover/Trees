@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <algorithm>
 using namespace std;
 
 struct Node {
@@ -50,6 +51,63 @@ void printTree(Node* node, string prefix = "", bool isLeft = true) {
     printTree(node->right, prefix + (isLeft ? "│   " : "    "), false);
 }
 
+struct NodeBplus {
+    vector<int> keys;
+    vector<NodeBplus*> children;
+    NodeBplus* next;
+    bool is_leaf;
+};
+
+NodeBplus* createNode(bool is_leaf) {
+    NodeBplus* node = new NodeBplus{{}, {}, nullptr, is_leaf};
+    return node;
+}
+
+void InsertToLeaf(NodeBplus* leaf, int key) {
+    leaf -> keys.push_back(key);
+    sort(leaf -> keys.begin(), leaf -> keys.end());
+}
+
+int findChildrenIndex(NodeBplus* node, int key) {
+    int i = 0;
+    while (i < node -> keys.size() && key >= node -> keys[i]) i++;
+    return i;
+}
+
+NodeBplus* insertRecursive(NodeBplus* node, int key, int max_keys) {
+    if (node -> is_leaf) {
+        InsertToLeaf(node, key);
+
+        if (node -> keys.size() > max_keys) {
+            //split
+        }
+
+        return node;
+    }
+
+    else {
+        int index = findChildrenIndex(node, key);
+        insertRecursive(node -> children[index], key, max_keys);
+        return node;
+    }
+}
+
+NodeBplus* Insert(NodeBplus* root, int key, int max_keys) {
+    if (root == nullptr) {
+        root = createNode(true);
+        root -> keys.push_back(key);
+        return root;
+    }
+
+    root = insertRecursive(root, key, max_keys);
+
+    if (root -> keys.size() > max_keys) {
+        //split
+    }
+    
+    return root;
+}
+
 int main() {
     setlocale(LC_ALL, "Russian");
 
@@ -70,8 +128,9 @@ int main() {
     cin >> root_value;
 
     Node* tree = buildBST(numbers, root_value);
+    printTree(tree);
+    cout << "Ну вот вам bst//" << endl;
 
-    printTree(tree); s
 
     return(0);
 }
