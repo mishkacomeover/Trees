@@ -71,7 +71,7 @@ int main() {
 
     Node* tree = buildBST(numbers, root_value);
 
-    printTree(tree);
+    printTree(tree); s
 
     return(0);
 }
