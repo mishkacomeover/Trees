@@ -6,6 +6,12 @@
 #include <algorithm>
 using namespace std;
 
+struct BplusTree;
+struct NodeBplus;
+void split(BplusTree* tree, NodeBplus* node);
+void insert_into_parent(BplusTree* tree, NodeBplus* left, NodeBplus* right, int up_key);
+
+//=======================================================BST=================================================================//
 // структура для BST
 struct Node {
     int value;
@@ -44,143 +50,147 @@ Node* buildBST(vector<int> numbers, int root_value) {
     return root;
 }
 
-// структура для B+
+//=======================================================B+=================================================================//
+// структура узла
 struct NodeBplus {
+    bool leaf;
     vector<int> keys;
+    NodeBplus* parent;
     vector<NodeBplus*> children;
-    NodeBplus* next;
-    bool is_leaf;
+    NodeBplus* left;
+    NodeBplus* right;
 };
 
-// структура для вывода результата сплита для B+
-struct splitresult {
-    NodeBplus* brother;
-    int key;
+// структура дерева
+struct BplusTree {
+    int t;
+    NodeBplus* root;
 };
 
-// создание узла для B+
-NodeBplus* createNode(bool is_leaf) {
-    NodeBplus* node = new NodeBplus{{}, {}, nullptr, is_leaf};
-    return node;
+// нахождение листа для вставки
+NodeBplus* find_leaf(BplusTree* tree, int key) {
+    NodeBplus* current = tree -> root;
+    
+    while (!current -> leaf) {
+        int i = 0;
+        while (i < current -> keys.size() && key >= current -> keys[i]) i++;
+        current = current -> children[i];
+    }
+    return current;
 }
 
-// вставка в лист B+
-void InsertToLeaf(NodeBplus* leaf, int key) {
-    leaf->keys.push_back(key);
-    sort(leaf->keys.begin(), leaf->keys.end());
-}
-
-// наход индекса ребенка B+
-int findChildrenIndex(NodeBplus* node, int key) {
-    int i = 0;
-    while (i < node->keys.size() && key >= node->keys[i]) i++;
-    return i;
-}
-
-// функция сплита (убрал max_keys из параметров - он не нужен)
-splitresult split(NodeBplus* node) {
-    int mid = node->keys.size() / 2;
-    NodeBplus* brother = createNode(node->is_leaf);
-
-    // копируем половину ключей в братуху
-    for (int i = mid; i < node->keys.size(); i++) {
-        brother->keys.push_back(node->keys[i]);
+// вставка ключа в лист
+void insertBplus(BplusTree* tree, int key) {
+    // если дерево пустое - новый лист и в него ключ
+    if (tree -> root == nullptr) {
+        tree -> root = new NodeBplus();
+        tree -> root -> leaf = true;
+        tree -> root -> keys.push_back(key);
+        return;
     }
-    // удаляем скопированные ключи из первого братухи
-    node->keys.erase(node->keys.begin() + mid, node->keys.end());
-
-    // копируем детей если это не лист
-    if (!node->is_leaf) {
-        for (int i = mid + 1; i < node->children.size(); i++) {
-            brother->children.push_back(node->children[i]);
-        }
-        node->children.erase(node->children.begin() + mid + 1, node->children.end());
-    }
-
-    // если лист, то связываем через next
-    if (node->is_leaf) {
-        brother->next = node->next;
-        node->next = brother;
-    }
-
-    // найдем ключик который будем поднимать
-    int upkey;
-    if (node->is_leaf) {
-        upkey = brother->keys[0]; // первый ключ в братане
-    }
-    else {
-        upkey = brother->keys[0];
-        brother->keys.erase(brother->keys.begin());
-        // детей тоже надо перекинуть
-        if (!brother->children.empty()) {
-            brother->children.erase(brother->children.begin());
-        }
-    }
-
-    return {brother, upkey};
-}
-
-// ВСТАВКА КЛЮЧА И БРАТА В РОДИТЕЛЯ (новая функция)
-void insertIntoParent(NodeBplus* parent, int key, NodeBplus* brother, NodeBplus* oldChild) {
-    // Находим позицию старого ребенка
+    
+    NodeBplus* leafchik = find_leaf(tree, key);
+    
+    // проверка вдруг уже есть такой ключ
+    if (find(leafchik -> keys.begin(), leafchik -> keys.end(), key) != leafchik -> keys.end())
+        return;
+    
+    // вставка
     int pos = 0;
-    while (pos < parent->children.size() && parent->children[pos] != oldChild) {
+    while (pos < leafchik -> keys.size() && leafchik -> keys[pos] < key) pos++;
+    leafchik -> keys.insert(leafchik -> keys.begin() + pos, key);
+    
+    // проверка на переполнение
+    if (leafchik -> keys.size() == 2 * tree -> t) {
+        split(tree, leafchik);
+    }
+}
+
+// вставка ключа и правого ребенка в родителя
+void insert_into_parent(BplusTree* tree, NodeBplus* left, NodeBplus* right, int up_key) {
+
+    // если у левого узла нет родителя - создаем новый корень
+    if (left->parent == nullptr) {
+        NodeBplus* new_root = new NodeBplus();
+        new_root->leaf = false;
+        new_root->keys = {up_key};
+        new_root->children = {left, right};
+        left->parent = new_root;
+        right->parent = new_root;
+        tree->root = new_root;
+        return;
+    }
+    
+    // если родитель есть
+    NodeBplus* parent = left->parent;
+    
+    // ищем позицию для вставки
+    int pos = 0;
+    while (pos < parent->keys.size() && parent->keys[pos] < up_key) {
         pos++;
     }
     
-    // Вставляем ключ
-    parent->keys.insert(parent->keys.begin() + pos, key);
-    // Вставляем нового брата
-    parent->children.insert(parent->children.begin() + pos + 1, brother);
-}
-
-// рекурсивная функция вставки B+ (теперь возвращает splitresult)
-splitresult insertRecursive(NodeBplus* node, int key, int max_keys) {
-    if (node->is_leaf) {
-        InsertToLeaf(node, key);
-        
-        if (node->keys.size() > max_keys) {
-            return split(node);
-        }
-        return {nullptr, -1};
-    }
-    else {
-        int index = findChildrenIndex(node, key);
-        splitresult res = insertRecursive(node->children[index], key, max_keys);
-        
-        // Если ребенок сплитанулся
-        if (res.brother != nullptr) {
-            insertIntoParent(node, res.key, res.brother, node->children[index]);
-            
-            // Проверяем переполнение текущего узла
-            if (node->keys.size() > max_keys) {
-                return split(node);
-            }
-        }
-        return {nullptr, -1};
-    }
-}
-
-// Не рекурсивная функция вставки B+
-NodeBplus* Insert(NodeBplus* root, int key, int max_keys) {
-    if (root == nullptr) {
-        root = createNode(true);
-        root->keys.push_back(key);
-        return root;
-    }
-
-    splitresult res = insertRecursive(root, key, max_keys);
-
-    // Если корень сплитанулся - создаем новый корень
-    if (res.brother != nullptr) {
-        NodeBplus* newRoot = createNode(false);
-        newRoot->keys.push_back(res.key);
-        newRoot->children.push_back(root);
-        newRoot->children.push_back(res.brother);
-        root = newRoot;
-    }
+    // вставляем ключ и правого ребенка
+    parent->keys.insert(parent->keys.begin() + pos, up_key);
+    parent->children.insert(parent->children.begin() + pos + 1, right);
+    right->parent = parent;
     
-    return root;
+    // если родитель переполнился - разбиваем его
+    if (parent->keys.size() == 2 * tree->t) {
+        split(tree, parent);
+    }
+}
+
+// разбиение узла
+void split(BplusTree* tree, NodeBplus* node) {
+    int t = tree->t;
+    
+    // создаем правый узел
+    NodeBplus* right = new NodeBplus();
+    right->leaf = node->leaf;
+    right->parent = node->parent;
+    
+    // связываем листья в список
+    right->left = node;
+    right->right = node->right;
+    if (node->right) node->right->left = right;
+    node->right = right;
+    
+    if (node->leaf) {
+        // ЛИСТ: забираем КЛЮЧИ с индекса t
+        for (int i = t; i < node->keys.size(); i++) {
+            right->keys.push_back(node->keys[i]);
+        }
+        node->keys.resize(t); // ОБРЕЗАНИЕ
+        
+        // ключ для поднятия - первый ключ правого узла
+        int up_key = right->keys[0];
+        
+        // вставляем в родителя
+        insert_into_parent(tree, node, right, up_key);
+        
+    } else {
+        // ВНУТРЕННИЙ УЗЕЛ: забираем КЛЮЧИ с индекса t
+        for (int i = t; i < node->keys.size(); i++) {
+            right->keys.push_back(node->keys[i]);
+        }
+        
+        // забираем ДЕТЕЙ с индекса t
+        for (int i = t; i < node->children.size(); i++) {
+            right->children.push_back(node->children[i]);
+            node->children[i]->parent = right;
+        }
+        
+        // Ключ для поднятия - предпоследний ключ (t-1)
+        int up_key = node->keys[t - 1];
+        
+        // Обрезаем левый узел
+        node->keys.resize(t - 1);
+        node->children.resize(t);
+        
+        // Вставляем в родителя
+        insert_into_parent(tree, node, right, up_key);
+    }
 }
 
 // рисуем BST дерево
@@ -205,15 +215,15 @@ void printBPlusTree(NodeBplus* node, string prefix = "", bool isLast = true) {
     }
     cout << "]";
     
-    if (node->is_leaf) {
+    if (node->leaf) {
         cout << " (leaf)";
-        if (node->next != nullptr) {
+        if (node->right != nullptr) {
             cout << " →";
         }
     }
     cout << endl;
     
-    if (!node->is_leaf) {
+    if (!node->leaf) {
         for (size_t i = 0; i < node->children.size(); i++) {
             printBPlusTree(node->children[i], 
                           prefix + (isLast ? "    " : "│   "), 
@@ -224,38 +234,41 @@ void printBPlusTree(NodeBplus* node, string prefix = "", bool isLast = true) {
 
 int main() {
     setlocale(LC_ALL, "Russian");
-
+    
     string input;
     vector<int> numbers;
     int root_value;
-
+    
     cout << "Введите числа через пробел: ";
     getline(cin, input);
-
+    
     stringstream ss(input);
     int num;
     while (ss >> num) {
         numbers.push_back(num);
     }
-
+    
     cout << "Введите значение корня BST (0 если нет): ";
     cin >> root_value;
-
+    
     Node* tree = buildBST(numbers, root_value);
     cout << endl << "------ BST ------" << endl;
     printTree(tree);
-
-    int max_keys;
-    cout << endl << "Введите максимальное количество ключей в узле B+ дерева:";
-    cin >> max_keys;
     
-    NodeBplus* bptree = nullptr;
+    int t;
+    cout << endl << "Введите степень B+ дерева (t): ";
+    cin >> t;
+
+    BplusTree bptree;
+    bptree.t = t;
+    bptree.root = nullptr;
+    
     for (int i : numbers) {
-        bptree = Insert(bptree, i, max_keys);
+        insertBplus(&bptree, i);
     }
     
     cout << endl << "------ B+ ДЕРЕВО ------" << endl;
-    printBPlusTree(bptree);
-
+    printBPlusTree(bptree.root);
+    
     return 0;
 }
