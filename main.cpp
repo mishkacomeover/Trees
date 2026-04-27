@@ -95,7 +95,7 @@ void insertBplus(BplusTree* tree, int key) {
     if (find(leafchik -> keys.begin(), leafchik -> keys.end(), key) != leafchik -> keys.end())
         return;
     
-    // вставка
+    // вставка на нужную позицию
     int pos = 0;
     while (pos < leafchik -> keys.size() && leafchik -> keys[pos] < key) pos++;
     leafchik -> keys.insert(leafchik -> keys.begin() + pos, key);
@@ -109,7 +109,7 @@ void insertBplus(BplusTree* tree, int key) {
 // вставка ключа и правого ребенка в родителя
 void insert_into_parent(BplusTree* tree, NodeBplus* left, NodeBplus* right, int up_key) {
 
-    // если у левого узла нет родителя - создаем новый корень
+    // если у левого узла нет родителя - ну грустно че, создаем новый корень
     if (left->parent == nullptr) {
         NodeBplus* new_root = new NodeBplus();
         new_root->leaf = false;
@@ -126,67 +126,67 @@ void insert_into_parent(BplusTree* tree, NodeBplus* left, NodeBplus* right, int 
     
     // ищем позицию для вставки
     int pos = 0;
-    while (pos < parent->keys.size() && parent->keys[pos] < up_key) {
+    while (pos < parent->keys.size() && parent -> keys[pos] < up_key) {
         pos++;
     }
     
     // вставляем ключ и правого ребенка
-    parent->keys.insert(parent->keys.begin() + pos, up_key);
-    parent->children.insert(parent->children.begin() + pos + 1, right);
-    right->parent = parent;
+    parent -> keys.insert(parent -> keys.begin() + pos, up_key);
+    parent -> children.insert(parent -> children.begin() + pos + 1, right);
+    right -> parent = parent;
     
     // если родитель переполнился - разбиваем его
-    if (parent->keys.size() == 2 * tree->t) {
+    if (parent -> keys.size() == 2 * tree -> t) {
         split(tree, parent);
     }
 }
 
 // разбиение узла
 void split(BplusTree* tree, NodeBplus* node) {
-    int t = tree->t;
+    int t = tree -> t;
     
     // создаем правый узел
     NodeBplus* right = new NodeBplus();
-    right->leaf = node->leaf;
-    right->parent = node->parent;
+    right -> leaf = node -> leaf;
+    right -> parent = node -> parent;
     
     // связываем листья в список
-    right->left = node;
-    right->right = node->right;
-    if (node->right) node->right->left = right;
-    node->right = right;
+    right -> left = node;
+    right -> right = node -> right;
+    if (node -> right) node -> right -> left = right;
+    node -> right = right;
     
-    if (node->leaf) {
+    if (node -> leaf) {
         // ЛИСТ: забираем КЛЮЧИ с индекса t
-        for (int i = t; i < node->keys.size(); i++) {
-            right->keys.push_back(node->keys[i]);
+        for (int i = t; i < node -> keys.size(); i++) {
+            right -> keys.push_back(node -> keys[i]);
         }
-        node->keys.resize(t); // ОБРЕЗАНИЕ
+        node -> keys.resize(t); // ОБРЕЗАНИЕ
         
         // ключ для поднятия - первый ключ правого узла
-        int up_key = right->keys[0];
+        int up_key = right -> keys[0];
         
         // вставляем в родителя
         insert_into_parent(tree, node, right, up_key);
         
     } else {
         // ВНУТРЕННИЙ УЗЕЛ: забираем КЛЮЧИ с индекса t
-        for (int i = t; i < node->keys.size(); i++) {
-            right->keys.push_back(node->keys[i]);
+        for (int i = t; i < node -> keys.size(); i++) {
+            right -> keys.push_back(node -> keys[i]);
         }
         
         // забираем ДЕТЕЙ с индекса t
-        for (int i = t; i < node->children.size(); i++) {
-            right->children.push_back(node->children[i]);
-            node->children[i]->parent = right;
+        for (int i = t; i < node -> children.size(); i++) {
+            right -> children.push_back(node -> children[i]);
+            node -> children[i] -> parent = right;
         }
         
         // Ключ для поднятия - предпоследний ключ (t-1)
-        int up_key = node->keys[t - 1];
+        int up_key = node -> keys[t - 1];
         
         // Обрезаем левый узел
-        node->keys.resize(t - 1);
-        node->children.resize(t);
+        node -> keys.resize(t - 1);
+        node -> children.resize(t);
         
         // Вставляем в родителя
         insert_into_parent(tree, node, right, up_key);
